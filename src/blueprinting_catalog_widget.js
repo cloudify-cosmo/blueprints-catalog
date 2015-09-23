@@ -8,7 +8,7 @@
 
     var endpoint = 'https://api.github.com';
     var githubQuery = '/search/repositories?q=*-example+user:cloudify-cosmo';
-    var blueprintsEndpoint = 'https://getcloudify.org';
+    var blueprintsEndpoint = '';
 
     catalog.directive('blueprintingCatalog', ['Github', 'CloudifyManager', 'CatalogHelper', '$log', function (Github, CloudifyManager, CatalogHelper, $log) {
 
@@ -17,7 +17,8 @@
             scope: {
                 githubQuery: '@catalogGithubQuery',
                 listTitle: '@catalogListTitle',
-                listDescription: '@catalogListDescription'
+                listDescription: '@catalogListDescription',
+                blueprintsEndpoint: '@catalogDefaultManager'
             },
             templateUrl: 'blueprinting_catalog_widget_tpl.html',
             link: function ($scope) {
@@ -25,6 +26,11 @@
                     githubQuery = $scope.githubQuery;
 
                     $log.debug(LOG_TAG, 'default search query was overridden with', githubQuery);
+                }
+                if ($scope.blueprintsEndpoint) {
+                    blueprintsEndpoint = $scope.blueprintsEndpoint;
+
+                    $log.debug(LOG_TAG, 'default manager endpoint was overridden with', blueprintsEndpoint);
                 }
 
                 $scope.loading = true;

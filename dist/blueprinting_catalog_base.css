@@ -58,6 +58,10 @@
     float: right;
 }
 
+.bl-catalog .upload-popup .upload-content form label {
+    display: block;
+}
+
 .bl-catalog .upload-popup .upload-content form select {
     width: 314px;
 }
