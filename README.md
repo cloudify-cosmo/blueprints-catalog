@@ -30,12 +30,12 @@ If you would like to use the widget on the page without AngularJS, you would nee
 
 ## Add Widget to the Page
 
-Add the following markup to the your page to initialize widget:
+Add the following markup to the your page to initialize widget (add the `ng-app="blueprintingCatalogApp"` attribute to any parent element if you had not used AngularJS on the page):
 ```html
 <div blueprinting-catalog
     data-catalog-list-title="Cloudify Examples"
     data-catalog-list-description='These are example blueprint archives that are ready to deploy. Click on "Upload to Manager" to publish to an existing manager and create a deployment now, or you can download and customize to your needs. Click on the "Source" to see the source at GitHub. Click on the name of the blueprint for more information about what it does.'
-    data-catalog-github-query="/search/repositories?q=*-example+user:cloudify-cosmo"
+    data-catalog-github-query="/search/repositories?q=*-example+user:cloudify-examples"
     data-catalog-default-manager="https://getcloudify.org">
 </div>
 ```

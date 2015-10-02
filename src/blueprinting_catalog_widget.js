@@ -7,7 +7,7 @@
     var defaultError = 'unexpected error occurred';
 
     var endpoint = 'https://api.github.com';
-    var githubQuery = '/search/repositories?q=*-example+user:cloudify-cosmo';
+    var githubQuery = '/search/repositories?q=*-example+user:cloudify-examples';
     var blueprintsEndpoint = '';
 
     catalog.directive('blueprintingCatalog', ['Github', 'CloudifyManager', 'CatalogHelper', '$log', function (Github, CloudifyManager, CatalogHelper, $log) {
