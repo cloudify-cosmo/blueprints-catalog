@@ -46,28 +46,24 @@
                 {{currentRepo.name}}
             </h1>
             <ul class="action-links">
-                <li><a href="{{currentRepo.html_url}}" target="_tab_{{currentRepo.id}}">Source</a></li>
-                <li><a href="{{currentRepo.html_url}}/archive/{{currentRepo.default_branch}}.zip">Download</a></li>
+                <li><a href="{{currentRepo.html_url}}/tree/{{currentRepo.currentVersion}}" target="_tab_{{currentRepo.id}}">Source</a></li>
+                <li><a href="{{currentRepo.html_url}}/archive/{{currentRepo.currentVersion}}.zip">Download</a></li>
                 <li><a href ng-click="showUpload(currentRepo);">Upload to Manager</a></li>
             </ul>
+            <div class="versions-list">
+                <label>Branches & Tags:</label>
+                <ul>
+                    <li ng-repeat="v in currentRepo.versionsList" ng-switch="v.name === currentRepo.currentVersion">
+                        <span ng-switch-when="true" class="label">{{v.name}}</span>
+                        <a ng-click="changeVersion(v.name);" href ng-switch-when="false" class="label">{{v.name}}</a>
+                    </li>
+                </ul>
+            </div>
         </div>
 
         <section>
-            <div>
-                README
-                <hr/>
-            </div>
-            <div ng-bind-html="currentRepo.readmeContent"></div>
-        </section>
-
-        <section>
-            <label>Available Tags:</label>
-            <ul>
-                <li ng-show="!currentRepo.tagsList.length">(None)</li>
-                <li ng-repeat="tag in currentRepo.tagsList">
-                    <span class="label">{{tag.name}}</span>
-                </li>
-            </ul>
+            <hr/>
+            <div ng-bind-html="currentRepo.readmeContents[currentRepo.currentVersion]"></div>
         </section>
     </div>
 
@@ -92,19 +88,11 @@
                         <label>
                             Source<br/>
                             <select ng-model="blueprint.url">
-                                <optgroup label="Branches">
-                                    <option ng-repeat="b in uploadRepo.branchesList"
-                                            value="{{uploadRepo.html_url}}/archive/{{b.name}}.zip"
-                                            ng-selected="b.name === uploadRepo.default_branch">
-                                        {{b.name}}
-                                    </option>
-                                </optgroup>
-                                <optgroup label="Tags">
-                                    <option ng-repeat="tag in uploadRepo.tagsList"
-                                            value="{{uploadRepo.html_url}}/archive/{{tag.name}}.zip">
-                                        {{tag.name}}
-                                    </option>
-                                </optgroup>
+                                <option ng-repeat="v in uploadRepo.versionsList"
+                                        value="{{uploadRepo.html_url}}/archive/{{v.name}}.zip"
+                                        ng-selected="b.name === uploadRepo.currentVersion">
+                                    {{v.name}}
+                                </option>
                             </select>
                         </label>
 

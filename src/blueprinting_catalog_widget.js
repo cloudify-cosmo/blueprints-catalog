@@ -8,124 +8,139 @@
 
     var endpoint = 'https://api.github.com';
     var githubQuery = '/search/repositories?q=*-example+user:cloudify-examples';
-    var blueprintsEndpoint = '';
+    var defaultVersion = 'master';
 
-    catalog.directive('blueprintingCatalog', ['Github', 'CloudifyManager', 'CatalogHelper', '$log', function (Github, CloudifyManager, CatalogHelper, $log) {
+    catalog.directive('blueprintingCatalog', ['Github', 'CloudifyManager', 'CatalogHelper', '$q', '$log',
+        function (Github, CloudifyManager, CatalogHelper, $q, $log) {
 
-        return {
-            restrict: 'A',
-            scope: {
-                githubQuery: '@catalogGithubQuery',
-                listTitle: '@catalogListTitle',
-                listDescription: '@catalogListDescription',
-                blueprintsEndpoint: '@catalogDefaultManager'
-            },
-            templateUrl: 'blueprinting_catalog_widget_tpl.html',
-            link: function ($scope) {
-                if ($scope.githubQuery) {
-                    githubQuery = $scope.githubQuery;
+            return {
+                restrict: 'A',
+                scope: {
+                    githubQuery: '@catalogGithubQuery',
+                    listTitle: '@catalogListTitle',
+                    listDescription: '@catalogListDescription',
+                    blueprintsEndpoint: '@catalogDefaultManager',
+                    defaultVersion: '@catalogDefaultVersion'
+                },
+                templateUrl: 'blueprinting_catalog_widget_tpl.html',
+                link: function ($scope) {
+                    if ($scope.githubQuery) {
+                        githubQuery = $scope.githubQuery;
 
-                    $log.debug(LOG_TAG, 'default search query was overridden with', githubQuery);
-                }
-                if ($scope.blueprintsEndpoint) {
-                    blueprintsEndpoint = $scope.blueprintsEndpoint;
+                        $log.debug(LOG_TAG, 'default search query was overridden with', githubQuery);
+                    }
+                    if ($scope.defaultVersion) {
+                        defaultVersion = $scope.defaultVersion;
+                    }
 
-                    $log.debug(LOG_TAG, 'default manager endpoint was overridden with', blueprintsEndpoint);
-                }
+                    $scope.blueprintsEndpoint = $scope.blueprintsEndpoint || '';
 
-                $scope.loading = true;
-                Github.getRepositories().then(function (response) {
-                    $log.debug(LOG_TAG, 'fetched repos', response);
+                    $scope.loading = true;
+                    Github.getRepositories().then(function (response) {
+                        $log.debug(LOG_TAG, 'fetched repos', response);
 
-                    $scope.repos = response.data && response.data.items || [];
-                }).finally(function () {
-                    $scope.loading = false;
-                });
+                        $scope.repos = response.data && response.data.items || [];
+                    }).finally(function () {
+                        $scope.loading = false;
+                    });
 
-                $scope.showDetails = function (repo) {
-                    $log.debug(LOG_TAG, 'show details', repo);
+                    $scope.showDetails = function (repo) {
+                        $log.debug(LOG_TAG, 'show details', repo);
 
-                    CatalogHelper.fillTags(repo);
-                    CatalogHelper.fillReadme(repo);
+                        $q.when(CatalogHelper.fillVersions(repo), function () {
+                            CatalogHelper.fillReadme(repo);
+                        });
 
-                    $scope.currentRepo = repo;
-                };
-
-                $scope.showList = function () {
-                    $scope.currentRepo = undefined;
-                };
-
-                $scope.showUpload = function (repo) {
-                    $log.debug(LOG_TAG, 'show upload', repo);
-
-                    CatalogHelper.fillTags(repo);
-                    CatalogHelper.fillBranches(repo);
-
-                    $scope.managerEndpoint = blueprintsEndpoint;
-                    $scope.blueprint = {
-                        path: 'blueprint.yaml',
-                        id: repo.name,
-                        url: repo.html_url + '/archive/' + repo.default_branch + '.zip'
+                        $scope.currentRepo = repo;
                     };
 
-                    $scope.uploadRepo = repo;
-                };
+                    $scope.changeVersion = function (version) {
+                        $scope.currentRepo.currentVersion = version;
 
-                $scope.closeUpload = function () {
-                    $scope.error = undefined;
-                    $scope.uploadRepo = undefined;
-                };
+                        CatalogHelper.fillReadme($scope.currentRepo);
+                    };
 
-                $scope.uploadBlueprint = function () {
-                    $log.debug(LOG_TAG, 'do upload');
+                    $scope.showList = function () {
+                        $scope.currentRepo = undefined;
+                    };
 
-                    if ($scope.blueprintForm.$valid) {
+                    $scope.showUpload = function (repo) {
+                        $log.debug(LOG_TAG, 'show upload', repo);
 
-                        $scope.processing = true;
+                        CatalogHelper.fillVersions(repo);
+
+                        $scope.managerEndpoint = $scope.blueprintsEndpoint;
+                        $scope.blueprint = {
+                            path: 'blueprint.yaml',
+                            id: repo.name,
+                            url: repo.html_url + '/archive/' + repo.currentVersion + '.zip'
+                        };
+
+                        $scope.uploadRepo = repo;
+                    };
+
+                    $scope.closeUpload = function () {
                         $scope.error = undefined;
-                        CloudifyManager.upload($scope.managerEndpoint, $scope.blueprint)
-                            .then(function () {
-                                $scope.uploadRepo = undefined;
-                            }, function (response) {
-                                $scope.error = CatalogHelper.getErrorFromResponse(response);
-                            })
-                            .finally(function () {
-                                $scope.processing = false;
-                            });
-                    }
-                };
-            }
-        };
+                        $scope.uploadRepo = undefined;
+                    };
 
-    }]);
+                    $scope.uploadBlueprint = function () {
+                        $log.debug(LOG_TAG, 'do upload');
 
-    catalog.factory('CatalogHelper', ['Github', '$sce', function (Github, $sce) {
+                        if ($scope.blueprintForm.$valid) {
+
+                            $scope.processing = true;
+                            $scope.error = undefined;
+                            CloudifyManager.upload($scope.managerEndpoint, $scope.blueprint)
+                                .then(function () {
+                                    $scope.uploadRepo = undefined;
+                                }, function (response) {
+                                    $scope.error = CatalogHelper.getErrorFromResponse(response);
+                                })
+                                .finally(function () {
+                                    $scope.processing = false;
+                                });
+                        }
+                    };
+                }
+            };
+
+        }]);
+
+    catalog.factory('CatalogHelper', ['Github', '$q', '$sce', function (Github, $q, $sce) {
 
         return {
-            fillTags: function (repo) {
-                if (!repo.tagsList) {
-                    Github.getTags(repo.url).then(function (response) {
-                        repo.tagsList = response.data || [];
-                    }, function () {
-                        repo.tagsList = [];
-                    });
-                }
-            },
-            fillBranches: function (repo) {
-                if (!repo.branchesList) {
-                    Github.getBranches(repo.url).then(function (response) {
-                        repo.branchesList = response.data || [];
-                    }, function () {
-                        repo.branchesList = [];
+            fillVersions: function (repo) {
+                if (!repo.versionsList) {
+                    var versionsList = repo.versionsList = [];
+                    var tagsPromise = Github.getTags(repo.url);
+                    var branchesPromise = Github.getBranches(repo.url);
+
+                    return $q.all([branchesPromise, tagsPromise]).then(function (response) {
+                        versionsList = versionsList.concat(response[0].data || []).concat(response[1].data || []);
+                        for (var i = 0, len = versionsList.length, v; i < len; i++) {
+                            v = versionsList[i];
+                            if (v.name === defaultVersion) {
+                                repo.defaultVersion = defaultVersion;
+                                break;
+                            }
+                        }
+                        if (!repo.defaultVersion) {
+                            repo.defaultVersion = repo.default_branch;
+                        }
+                        repo.currentVersion = repo.defaultVersion;
+
+                        repo.versionsList = versionsList;
                     });
                 }
             },
             fillReadme: function (repo) {
-                if (!repo.readmeContent) {
-                    Github.getReadme(repo.url).then(function (response) {
-                        repo.readmeContent = $sce.trustAsHtml(response.data || 'No Readme File');
+                repo.readmeContents = repo.readmeContents || {};
+                if (!repo.readmeContents[repo.currentVersion]) {
+                    Github.getReadme(repo.url, repo.currentVersion).then(function (response) {
+                        repo.readmeContents[repo.currentVersion] = $sce.trustAsHtml(response.data || 'No Readme File');
                     }, function () {
-                        repo.readmeContent = $sce.trustAsHtml('No Readme File');
+                        repo.readmeContents[repo.currentVersion] = $sce.trustAsHtml('No Readme File');
                     });
                 }
             },
@@ -165,10 +180,10 @@
                     url: repo_url + '/branches'
                 });
             },
-            getReadme: function (repo_url) {
+            getReadme: function (repo_url, version) {
                 return $http({
                     method: 'GET',
-                    url: repo_url + '/readme',
+                    url: repo_url + '/readme' + (version ? '?ref=' + encodeURIComponent(version) : ''),
                     headers: {
                         'Accept': 'application/vnd.github.html+json'
                     }

@@ -17,6 +17,14 @@
     padding-right: 10px;
 }
 
+.bl-catalog hr {
+    clear: both;
+}
+
+.bl-catalog .versions-list {
+    float: left;
+}
+
 .bl-catalog .action-links {
     float: right;
 }
