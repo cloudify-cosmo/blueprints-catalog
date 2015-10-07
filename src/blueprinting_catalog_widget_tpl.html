@@ -1,4 +1,5 @@
 <section class="bl-catalog">
+    <!--List of repositories-->
     <div ng-show="!currentRepo">
         <div>
             <h1>{{::listTitle}}</h1>
@@ -8,6 +9,12 @@
 
         <div>
             <table>
+                <colgroup>
+                    <col class="col-name"/>
+                    <col class="col-descr"/>
+                    <col class="col-source"/>
+                    <col class="col-action"/>
+                </colgroup>
                 <thead>
                 <tr>
                     <th>Name</th>
@@ -39,6 +46,8 @@
             </table>
         </div>
     </div>
+
+    <!--Repository's details-->
     <div ng-show="currentRepo">
         <div>
             <h1>
@@ -46,16 +55,16 @@
                 {{currentRepo.name}}
             </h1>
             <ul class="action-links">
-                <li><a href="{{currentRepo.html_url}}/tree/{{currentRepo.currentVersion}}" target="_tab_{{currentRepo.id}}">Source</a></li>
-                <li><a href="{{currentRepo.html_url}}/archive/{{currentRepo.currentVersion}}.zip">Download</a></li>
+                <li><a href="{{currentRepo.html_url}}/tree/{{currentRepo.currentVersion.name}}" target="_tab_{{currentRepo.id}}">Source</a></li>
+                <li><a href="{{currentRepo.html_url}}/archive/{{currentRepo.currentVersion.name}}.zip">Download</a></li>
                 <li><a href ng-click="showUpload(currentRepo);">Upload to Manager</a></li>
             </ul>
             <div class="versions-list">
                 <label>Branches & Tags:</label>
                 <ul>
-                    <li ng-repeat="v in currentRepo.versionsList" ng-switch="v.name === currentRepo.currentVersion">
-                        <span ng-switch-when="true" class="label">{{v.name}}</span>
-                        <a ng-click="changeVersion(v.name);" href ng-switch-when="false" class="label">{{v.name}}</a>
+                    <li ng-repeat="v in currentRepo.versionsList" ng-switch="v.name === currentRepo.currentVersion.name">
+                        <span ng-switch-when="true" class="label version-selected">{{v.name}}</span>
+                        <a ng-click="switchVersion(v);" href ng-switch-when="false" class="label version">{{v.name}}</a>
                     </li>
                 </ul>
             </div>
@@ -63,10 +72,11 @@
 
         <section>
             <hr/>
-            <div ng-bind-html="currentRepo.readmeContents[currentRepo.currentVersion]"></div>
+            <div ng-bind-html="currentRepo.readmeContents[currentRepo.currentVersion.name]"></div>
         </section>
     </div>
 
+    <!--Upload popup-->
     <div ng-show="uploadRepo" class="modal-backdrop"></div>
     <div class="modal" ng-show="uploadRepo">
         <div class="modal-dialog">
@@ -83,16 +93,14 @@
                         </label>
                         <label>
                             Blueprint File Name<br/>
-                            <input type="text" ng-model="blueprint.path" placeholder="enter blueprint file name" required/>
+                            <select ng-model="blueprint.path"
+                                    ng-options="b for b in uploadRepo.blueprintFiles[uploadRepo.currentVersion.name]" required>
+                            </select>
                         </label>
                         <label>
                             Source<br/>
-                            <select ng-model="blueprint.url">
-                                <option ng-repeat="v in uploadRepo.versionsList"
-                                        value="{{uploadRepo.html_url}}/archive/{{v.name}}.zip"
-                                        ng-selected="b.name === uploadRepo.currentVersion">
-                                    {{v.name}}
-                                </option>
+                            <select ng-model="uploadRepo.currentVersion" ng-change="selectNewVersion(uploadRepo.currentVersion);"
+                                    ng-options="v as v.name for v in uploadRepo.versionsList" required>
                             </select>
                         </label>
 

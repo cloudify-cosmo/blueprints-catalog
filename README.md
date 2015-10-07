@@ -50,7 +50,7 @@ The following options are supported:
 
 `data-catalog-default-manager` - Defines the default value for "Manager Endpoint" field (_Default:_ `''`)
 
-`data-catalog-default-version` - Defines the default selected branch / tag (_Default:_ `'master'`)
+`data-catalog-default-version` - Defines the default selected branch / tag (_Default:_ `repository's default branch`)
 
 ## Styling
 

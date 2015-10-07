@@ -33,6 +33,10 @@
     content: '\3008';
 }
 
+.bl-catalog .versions-list .version-selected {
+    background-color: #337ab7;
+}
+
 .bl-catalog .modal-backdrop {
     position: fixed;
     top: 0;

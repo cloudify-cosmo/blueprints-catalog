@@ -6,9 +6,11 @@
     var LOG_TAG = 'BLUEPRINTING CATALOG WIDGET';
     var defaultError = 'unexpected error occurred';
 
-    var endpoint = 'https://api.github.com';
+    var blueprintRegex = /blueprint.yaml$/i;
+
     var githubQuery = '/search/repositories?q=*-example+user:cloudify-examples';
-    var defaultVersion = 'master';
+    var defaultVersion = '';
+    var blueprintsEndpoint = '';
 
     catalog.directive('blueprintingCatalog', ['Github', 'CloudifyManager', 'CatalogHelper', '$q', '$log',
         function (Github, CloudifyManager, CatalogHelper, $q, $log) {
@@ -32,8 +34,9 @@
                     if ($scope.defaultVersion) {
                         defaultVersion = $scope.defaultVersion;
                     }
-
-                    $scope.blueprintsEndpoint = $scope.blueprintsEndpoint || '';
+                    if ($scope.blueprintsEndpoint) {
+                        blueprintsEndpoint = $scope.blueprintsEndpoint;
+                    }
 
                     $scope.loading = true;
                     Github.getRepositories().then(function (response) {
@@ -45,19 +48,17 @@
                     });
 
                     $scope.showDetails = function (repo) {
-                        $log.debug(LOG_TAG, 'show details', repo);
-
                         $q.when(CatalogHelper.fillVersions(repo), function () {
-                            CatalogHelper.fillReadme(repo);
+                            if (repo.currentVersion) {
+                                CatalogHelper.fillReadme(repo);
+                            }
                         });
 
                         $scope.currentRepo = repo;
                     };
 
-                    $scope.changeVersion = function (version) {
-                        $scope.currentRepo.currentVersion = version;
-
-                        CatalogHelper.fillReadme($scope.currentRepo);
+                    $scope.switchVersion = function (version) {
+                        CatalogHelper.changeVersion($scope.currentRepo, version);
                     };
 
                     $scope.showList = function () {
@@ -67,21 +68,36 @@
                     $scope.showUpload = function (repo) {
                         $log.debug(LOG_TAG, 'show upload', repo);
 
-                        CatalogHelper.fillVersions(repo);
+                        $q.when(CatalogHelper.fillVersions(repo), function () {
+                            if (repo.currentVersion) {
+                                $scope.blueprint.url = repo.html_url + '/archive/' + repo.currentVersion.name + '.zip';
+                                $q.when(CatalogHelper.fillBlueprints(repo), function () {
+                                    $scope.blueprint.path = repo.blueprintFiles[repo.currentVersion.name][0] || '';
+                                });
+                            }
+                        });
 
-                        $scope.managerEndpoint = $scope.blueprintsEndpoint;
+                        $scope.managerEndpoint = blueprintsEndpoint;
                         $scope.blueprint = {
-                            path: 'blueprint.yaml',
-                            id: repo.name,
-                            url: repo.html_url + '/archive/' + repo.currentVersion + '.zip'
+                            id: repo.name
                         };
 
                         $scope.uploadRepo = repo;
                     };
 
+                    $scope.selectNewVersion = function (version) {
+                        var repo = $scope.uploadRepo;
+
+                        $q.when(CatalogHelper.changeVersion(repo, version), function () {
+                            $scope.blueprint.url = repo.html_url + '/archive/' + repo.currentVersion.name + '.zip';
+                            $scope.blueprint.path = repo.blueprintFiles[repo.currentVersion.name][0];
+                        });
+                    };
+
                     $scope.closeUpload = function () {
                         $scope.error = undefined;
                         $scope.uploadRepo = undefined;
+                        $scope.blueprint = undefined;
                     };
 
                     $scope.uploadBlueprint = function () {
@@ -107,40 +123,70 @@
 
         }]);
 
-    catalog.factory('CatalogHelper', ['Github', '$q', '$sce', function (Github, $q, $sce) {
+    catalog.factory('CatalogHelper', ['Github', '$q', '$sce', '$log', function (Github, $q, $sce, $log) {
 
         return {
+            changeVersion: function (repo, version) {
+                $log.debug(LOG_TAG, 'change version to', version);
+
+                repo.currentVersion = version;
+
+                return $q.all([this.fillReadme(repo), this.fillBlueprints(repo)]);
+            },
+
             fillVersions: function (repo) {
                 if (!repo.versionsList) {
-                    var versionsList = repo.versionsList = [];
+                    $log.debug(LOG_TAG, 'filling branches & tags for repo', repo);
+
+                    var versionsList = [];
                     var tagsPromise = Github.getTags(repo.url);
                     var branchesPromise = Github.getBranches(repo.url);
 
                     return $q.all([branchesPromise, tagsPromise]).then(function (response) {
                         versionsList = versionsList.concat(response[0].data || []).concat(response[1].data || []);
+                        var repoDefaultVersion = defaultVersion || repo.default_branch;
                         for (var i = 0, len = versionsList.length, v; i < len; i++) {
                             v = versionsList[i];
-                            if (v.name === defaultVersion) {
-                                repo.defaultVersion = defaultVersion;
+                            if (v.name === repoDefaultVersion) {
+                                repoDefaultVersion = v;
                                 break;
                             }
                         }
-                        if (!repo.defaultVersion) {
-                            repo.defaultVersion = repo.default_branch;
-                        }
-                        repo.currentVersion = repo.defaultVersion;
+                        repo.currentVersion = repoDefaultVersion;
 
                         repo.versionsList = versionsList;
                     });
                 }
             },
+
+            fillBlueprints: function (repo) {
+                repo.blueprintFiles = repo.blueprintFiles || {};
+                if (!repo.blueprintFiles[repo.currentVersion.name]) {
+                    $log.debug(LOG_TAG, 'filling blueprints for repo', repo);
+
+                    return Github.getTree(repo.url, repo.currentVersion.commit.sha).then(function (response) {
+                        var blueprints = [];
+                        var files = response.data && response.data.tree || [];
+                        for (var i = 0, len = files.length, f; i < len; i++) {
+                            f = files[i];
+                            if (f.type === 'blob' && blueprintRegex.test(f.path)) {
+                                blueprints.push(f.path);
+                            }
+                        }
+                        repo.blueprintFiles[repo.currentVersion.name] = blueprints;
+                    });
+                }
+            },
+
             fillReadme: function (repo) {
                 repo.readmeContents = repo.readmeContents || {};
-                if (!repo.readmeContents[repo.currentVersion]) {
-                    Github.getReadme(repo.url, repo.currentVersion).then(function (response) {
-                        repo.readmeContents[repo.currentVersion] = $sce.trustAsHtml(response.data || 'No Readme File');
+                if (!repo.readmeContents[repo.currentVersion.name]) {
+                    $log.debug(LOG_TAG, 'filling readme for repo', repo);
+
+                    return Github.getReadme(repo.url, repo.currentVersion.name).then(function (response) {
+                        repo.readmeContents[repo.currentVersion.name] = $sce.trustAsHtml(response.data || 'No Readme File');
                     }, function () {
-                        repo.readmeContents[repo.currentVersion] = $sce.trustAsHtml('No Readme File');
+                        repo.readmeContents[repo.currentVersion.name] = $sce.trustAsHtml('No Readme File');
                     });
                 }
             },
@@ -160,6 +206,7 @@
     }]);
 
     catalog.factory('Github', ['$http', function ($http) {
+        var endpoint = 'https://api.github.com';
 
         return {
             getRepositories: function () {
@@ -187,6 +234,12 @@
                     headers: {
                         'Accept': 'application/vnd.github.html+json'
                     }
+                });
+            },
+            getTree: function (repo_url, sha) {
+                return $http({
+                    method: 'GET',
+                    url: repo_url + '/git/trees/' + sha
                 });
             }
         };
@@ -217,7 +270,7 @@ angular.module('blueprintingCatalogWidget').run(['$templateCache', function($tem
   'use strict';
 
   $templateCache.put('blueprinting_catalog_widget_tpl.html',
-    "<section class=\"bl-catalog\"> <div ng-show=\"!currentRepo\"> <div> <h1>{{::listTitle}}</h1> <p>{{::listDescription}}</p> </div> <div> <table> <thead> <tr> <th>Name</th> <th>Description</th> <th>Source</th> <th>Action</th> </tr> </thead> <tr ng-show=\"!loading && !repos.length\"> <td colspan=\"4\">No Data Found</td> </tr> <tr ng-show=\"loading\"> <td colspan=\"4\">Loading...</td> </tr> <tr ng-repeat=\"repo in repos\"> <td> <a href ng-click=\"showDetails(repo);\">{{::repo.name}}</a> </td> <td> {{::repo.description}} </td> <td> <a href=\"{{::repo.html_url}}\" target=\"_tab_{{::repo.id}}\">Source</a> </td> <td> <a href ng-click=\"showUpload(repo);\">Upload to Manager</a> </td> </tr> </table> </div> </div> <div ng-show=\"currentRepo\"> <div> <h1> <a href ng-click=\"showList();\" class=\"to-list\"></a> {{currentRepo.name}} </h1> <ul class=\"action-links\"> <li><a href=\"{{currentRepo.html_url}}/tree/{{currentRepo.currentVersion}}\" target=\"_tab_{{currentRepo.id}}\">Source</a></li> <li><a href=\"{{currentRepo.html_url}}/archive/{{currentRepo.currentVersion}}.zip\">Download</a></li> <li><a href ng-click=\"showUpload(currentRepo);\">Upload to Manager</a></li> </ul> <div class=\"versions-list\"> <label>Branches & Tags:</label> <ul> <li ng-repeat=\"v in currentRepo.versionsList\" ng-switch=\"v.name === currentRepo.currentVersion\"> <span ng-switch-when=\"true\" class=\"label\">{{v.name}}</span> <a ng-click=\"changeVersion(v.name);\" href ng-switch-when=\"false\" class=\"label\">{{v.name}}</a> </li> </ul> </div> </div> <section> <hr> <div ng-bind-html=\"currentRepo.readmeContents[currentRepo.currentVersion]\"></div> </section> </div> <div ng-show=\"uploadRepo\" class=\"modal-backdrop\"></div> <div class=\"modal\" ng-show=\"uploadRepo\"> <div class=\"modal-dialog\"> <div class=\"modal-content no-header\"> <div class=\"modal-body\"> <form novalidate name=\"blueprintForm\"> <label> Blueprint Name<br> <input type=\"text\" ng-model=\"blueprint.id\" placeholder=\"enter blueprint name\" required> </label> <label> Manager Endpoint URL<br> <input type=\"url\" ng-model=\"managerEndpoint\" placeholder=\"enter manager url\" required> </label> <label> Blueprint File Name<br> <input type=\"text\" ng-model=\"blueprint.path\" placeholder=\"enter blueprint file name\" required> </label> <label> Source<br> <select ng-model=\"blueprint.url\"> <option ng-repeat=\"v in uploadRepo.versionsList\" value=\"{{uploadRepo.html_url}}/archive/{{v.name}}.zip\" ng-selected=\"b.name === uploadRepo.currentVersion\"> {{v.name}} </option> </select> </label> <div class=\"alert alert-danger\" ng-show=\"error\">{{error}}</div> </form> <div class=\"modal-buttons\"> <button class=\"btn btn-default\" ng-disabled=\"processing\" ng-click=\"closeUpload();\">Cancel</button> <button class=\"btn btn-primary\" ng-disabled=\"processing || blueprintForm.$invalid\" ng-click=\"uploadBlueprint();\"> <span ng-show=\"processing\">Uploading...</span> <span ng-hide=\"processing\">Upload</span> </button> </div> </div> </div> </div> </div> </section>"
+    "<section class=\"bl-catalog\"> <!--List of repositories--> <div ng-show=\"!currentRepo\"> <div> <h1>{{::listTitle}}</h1> <p>{{::listDescription}}</p> </div> <div> <table> <colgroup> <col class=\"col-name\"> <col class=\"col-descr\"> <col class=\"col-source\"> <col class=\"col-action\"> </colgroup> <thead> <tr> <th>Name</th> <th>Description</th> <th>Source</th> <th>Action</th> </tr> </thead> <tr ng-show=\"!loading && !repos.length\"> <td colspan=\"4\">No Data Found</td> </tr> <tr ng-show=\"loading\"> <td colspan=\"4\">Loading...</td> </tr> <tr ng-repeat=\"repo in repos\"> <td> <a href ng-click=\"showDetails(repo);\">{{::repo.name}}</a> </td> <td> {{::repo.description}} </td> <td> <a href=\"{{::repo.html_url}}\" target=\"_tab_{{::repo.id}}\">Source</a> </td> <td> <a href ng-click=\"showUpload(repo);\">Upload to Manager</a> </td> </tr> </table> </div> </div> <!--Repository's details--> <div ng-show=\"currentRepo\"> <div> <h1> <a href ng-click=\"showList();\" class=\"to-list\"></a> {{currentRepo.name}} </h1> <ul class=\"action-links\"> <li><a href=\"{{currentRepo.html_url}}/tree/{{currentRepo.currentVersion.name}}\" target=\"_tab_{{currentRepo.id}}\">Source</a></li> <li><a href=\"{{currentRepo.html_url}}/archive/{{currentRepo.currentVersion.name}}.zip\">Download</a></li> <li><a href ng-click=\"showUpload(currentRepo);\">Upload to Manager</a></li> </ul> <div class=\"versions-list\"> <label>Branches & Tags:</label> <ul> <li ng-repeat=\"v in currentRepo.versionsList\" ng-switch=\"v.name === currentRepo.currentVersion.name\"> <span ng-switch-when=\"true\" class=\"label version-selected\">{{v.name}}</span> <a ng-click=\"switchVersion(v);\" href ng-switch-when=\"false\" class=\"label version\">{{v.name}}</a> </li> </ul> </div> </div> <section> <hr> <div ng-bind-html=\"currentRepo.readmeContents[currentRepo.currentVersion.name]\"></div> </section> </div> <!--Upload popup--> <div ng-show=\"uploadRepo\" class=\"modal-backdrop\"></div> <div class=\"modal\" ng-show=\"uploadRepo\"> <div class=\"modal-dialog\"> <div class=\"modal-content no-header\"> <div class=\"modal-body\"> <form novalidate name=\"blueprintForm\"> <label> Blueprint Name<br> <input type=\"text\" ng-model=\"blueprint.id\" placeholder=\"enter blueprint name\" required> </label> <label> Manager Endpoint URL<br> <input type=\"url\" ng-model=\"managerEndpoint\" placeholder=\"enter manager url\" required> </label> <label> Blueprint File Name<br> <select ng-model=\"blueprint.path\" ng-options=\"b for b in uploadRepo.blueprintFiles[uploadRepo.currentVersion.name]\" required> </select> </label> <label> Source<br> <select ng-model=\"uploadRepo.currentVersion\" ng-change=\"selectNewVersion(uploadRepo.currentVersion);\" ng-options=\"v as v.name for v in uploadRepo.versionsList\" required> </select> </label> <div class=\"alert alert-danger\" ng-show=\"error\">{{error}}</div> </form> <div class=\"modal-buttons\"> <button class=\"btn btn-default\" ng-disabled=\"processing\" ng-click=\"closeUpload();\">Cancel</button> <button class=\"btn btn-primary\" ng-disabled=\"processing || blueprintForm.$invalid\" ng-click=\"uploadBlueprint();\"> <span ng-show=\"processing\">Uploading...</span> <span ng-hide=\"processing\">Upload</span> </button> </div> </div> </div> </div> </div> </section>"
   );
 
 }]);
