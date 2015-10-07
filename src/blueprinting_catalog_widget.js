@@ -77,7 +77,8 @@
                             if (repo.currentVersion) {
                                 $scope.blueprint.url = repo.html_url + '/archive/' + repo.currentVersion.name + '.zip';
                                 $q.when(CatalogHelper.fillBlueprints(repo, repo.currentVersion), function () {
-                                    $scope.blueprint.path = repo.blueprintFiles[repo.currentVersion.name][0] || '';
+                                    var files = repo.blueprintFiles[repo.currentVersion.name];
+                                    $scope.blueprint.path = files && files[0] || '';
                                 });
                             }
                         });
