@@ -12,6 +12,8 @@
     var defaultVersion = '';
     var blueprintsEndpoint = '';
 
+    var __scope;
+
     catalog.directive('blueprintingCatalog', ['Github', 'CloudifyManager', 'CatalogHelper', '$q', '$log',
         function (Github, CloudifyManager, CatalogHelper, $q, $log) {
 
@@ -21,11 +23,14 @@
                     githubQuery: '@catalogGithubQuery',
                     listTitle: '@catalogListTitle',
                     listDescription: '@catalogListDescription',
+                    backText: '@catalogBackText',
                     blueprintsEndpoint: '@catalogDefaultManager',
                     defaultVersion: '@catalogDefaultVersion'
                 },
                 templateUrl: 'blueprinting_catalog_widget_tpl.html',
                 link: function ($scope) {
+                    __scope = $scope;
+
                     if ($scope.githubQuery) {
                         githubQuery = $scope.githubQuery;
 
@@ -50,7 +55,7 @@
                     $scope.showDetails = function (repo) {
                         $q.when(CatalogHelper.fillVersions(repo), function () {
                             if (repo.currentVersion) {
-                                CatalogHelper.fillReadme(repo);
+                                CatalogHelper.fillReadme(repo, repo.currentVersion);
                             }
                         });
 
@@ -71,7 +76,7 @@
                         $q.when(CatalogHelper.fillVersions(repo), function () {
                             if (repo.currentVersion) {
                                 $scope.blueprint.url = repo.html_url + '/archive/' + repo.currentVersion.name + '.zip';
-                                $q.when(CatalogHelper.fillBlueprints(repo), function () {
+                                $q.when(CatalogHelper.fillBlueprints(repo, repo.currentVersion), function () {
                                     $scope.blueprint.path = repo.blueprintFiles[repo.currentVersion.name][0] || '';
                                 });
                             }
@@ -89,8 +94,8 @@
                         var repo = $scope.uploadRepo;
 
                         $q.when(CatalogHelper.changeVersion(repo, version), function () {
-                            $scope.blueprint.url = repo.html_url + '/archive/' + repo.currentVersion.name + '.zip';
-                            $scope.blueprint.path = repo.blueprintFiles[repo.currentVersion.name][0];
+                            $scope.blueprint.url = repo.html_url + '/archive/' + version.name + '.zip';
+                            $scope.blueprint.path = repo.blueprintFiles[version.name][0];
                         });
                     };
 
@@ -131,7 +136,7 @@
 
                 repo.currentVersion = version;
 
-                return $q.all([this.fillReadme(repo), this.fillBlueprints(repo)]);
+                return $q.all([this.fillReadme(repo, version), this.fillBlueprints(repo, version)]);
             },
 
             fillVersions: function (repo) {
@@ -155,16 +160,16 @@
                         repo.currentVersion = repoDefaultVersion;
 
                         repo.versionsList = versionsList;
-                    });
+                    }, this.handleGithubLimit);
                 }
             },
 
-            fillBlueprints: function (repo) {
+            fillBlueprints: function (repo, version) {
                 repo.blueprintFiles = repo.blueprintFiles || {};
-                if (!repo.blueprintFiles[repo.currentVersion.name]) {
+                if (!repo.blueprintFiles[version.name]) {
                     $log.debug(LOG_TAG, 'filling blueprints for repo', repo);
 
-                    return Github.getTree(repo.url, repo.currentVersion.commit.sha).then(function (response) {
+                    return Github.getTree(repo.url, version.commit.sha).then(function (response) {
                         var blueprints = [];
                         var files = response.data && response.data.tree || [];
                         for (var i = 0, len = files.length, f; i < len; i++) {
@@ -173,21 +178,25 @@
                                 blueprints.push(f.path);
                             }
                         }
-                        repo.blueprintFiles[repo.currentVersion.name] = blueprints;
-                    });
+                        repo.blueprintFiles[version.name] = blueprints;
+                    }, this.handleGithubLimit);
                 }
             },
 
-            fillReadme: function (repo) {
+            fillReadme: function (repo, version) {
                 repo.readmeContents = repo.readmeContents || {};
-                if (!repo.readmeContents[repo.currentVersion.name]) {
+                if (!repo.readmeContents[version.name]) {
                     $log.debug(LOG_TAG, 'filling readme for repo', repo);
 
-                    return Github.getReadme(repo.url, repo.currentVersion.name).then(function (response) {
-                        repo.readmeContents[repo.currentVersion.name] = $sce.trustAsHtml(response.data || 'No Readme File');
-                    }, function () {
-                        repo.readmeContents[repo.currentVersion.name] = $sce.trustAsHtml('No Readme File');
-                    });
+                    return Github.getReadme(repo.url, version.name).then(function (response) {
+                        repo.readmeContents[version.name] = $sce.trustAsHtml(response.data || 'No Readme File');
+                    }, this.handleGithubLimit);
+                }
+            },
+
+            handleGithubLimit: function (response) {
+                if (response.status === 403 && response.headers('X-RateLimit-Remaining') === '0') {
+                    __scope.githubLimit = true;
                 }
             },
 

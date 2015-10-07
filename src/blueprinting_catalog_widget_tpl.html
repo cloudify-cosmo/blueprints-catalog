@@ -39,8 +39,9 @@
                     <td>
                         <a href="{{::repo.html_url}}" target="_tab_{{::repo.id}}">Source</a>
                     </td>
-                    <td>
-                        <a href ng-click="showUpload(repo);">Upload to Manager</a>
+                    <td ng-switch="!!githubLimit">
+                        <a href ng-switch-when="false" ng-click="showUpload(repo);">Upload to Manager</a>
+                        <span ng-switch-when="true" title="GitHub API rate limit exceeded. Please wait some time and refresh the page.">Upload to Manager</span>
                     </td>
                 </tr>
             </table>
@@ -51,15 +52,15 @@
     <div ng-show="currentRepo">
         <div>
             <h1>
-                <a href ng-click="showList();" class="to-list"></a>
+                <a href ng-click="showList();" class="to-list">{{backText}}</a>
                 {{currentRepo.name}}
             </h1>
-            <ul class="action-links">
+            <ul class="action-links" ng-hide="githubLimit">
                 <li><a href="{{currentRepo.html_url}}/tree/{{currentRepo.currentVersion.name}}" target="_tab_{{currentRepo.id}}">Source</a></li>
                 <li><a href="{{currentRepo.html_url}}/archive/{{currentRepo.currentVersion.name}}.zip">Download</a></li>
                 <li><a href ng-click="showUpload(currentRepo);">Upload to Manager</a></li>
             </ul>
-            <div class="versions-list">
+            <div class="versions-list" ng-hide="githubLimit">
                 <label>Branches & Tags:</label>
                 <ul>
                     <li ng-repeat="v in currentRepo.versionsList" ng-switch="v.name === currentRepo.currentVersion.name">
@@ -72,13 +73,17 @@
 
         <section>
             <hr/>
-            <div ng-bind-html="currentRepo.readmeContents[currentRepo.currentVersion.name]"></div>
+            <div ng-bind-html="currentRepo.readmeContents[currentRepo.currentVersion.name]" ng-hide="githubLimit"></div>
+
+            <div class="alert alert-danger" ng-show="githubLimit">
+                GitHub API rate limit exceeded. Please wait some time and refresh the page.
+            </div>
         </section>
     </div>
 
     <!--Upload popup-->
-    <div ng-show="uploadRepo" class="modal-backdrop"></div>
-    <div class="modal" ng-show="uploadRepo">
+    <div ng-show="uploadRepo && !githubLimit" class="modal-backdrop"></div>
+    <div class="modal" ng-show="uploadRepo && !githubLimit">
         <div class="modal-dialog">
             <div class="modal-content no-header">
                 <div class="modal-body">
