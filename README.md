@@ -36,7 +36,7 @@ Add the following markup to the your page to initialize widget (add the `ng-app=
     data-catalog-list-title="Cloudify Examples"
     data-catalog-back-text="back"
     data-catalog-list-description='These are example blueprint archives that are ready to deploy. Click on "Upload to Manager" to publish to an existing manager and create a deployment now, or you can download and customize to your needs. Click on the "Source" to see the source at GitHub. Click on the name of the blueprint for more information about what it does.'
-    data-catalog-github-query="/search/repositories?q=*-example+user:cloudify-examples"
+    data-catalog-github-query="/search/repositories?q=repo:*-example+user:cloudify-examples"
     data-catalog-default-manager="https://getcloudify.org"
     data-catalog-default-version="master">
 </div>
@@ -47,9 +47,9 @@ The following options are supported:
 
 `data-catalog-list-description` - Defines the description under the title (_Default:_ `none`)
 
-`data-catalog-back-text` - Defines the title of the back link on the details view (_Default:_ `'back'`)
+`data-catalog-back-text` - Defines the title of the back link on the details view (_Default:_ `''`)
 
-`data-catalog-github-query` - Defines the github search query to be used to retrieve the repositories list (_Default:_ `'/search/repositories?q=*-example+user:cloudify-cosmo'`)
+`data-catalog-github-query` - Defines the github search query to be used to retrieve the repositories list (_Default:_ `'/search/repositories?q=repo:*-example+user:cloudify-cosmo'`)
 
 `data-catalog-default-manager` - Defines the default value for "Manager Endpoint" field (_Default:_ `''`)
 

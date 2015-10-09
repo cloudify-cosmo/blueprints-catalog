@@ -8,7 +8,7 @@
 
     var blueprintRegex = /blueprint.yaml$/i;
 
-    var githubQuery = '/search/repositories?q=*-example+user:cloudify-examples';
+    var githubQuery = '/search/repositories?q=repo:*-example+user:cloudify-examples';
     var defaultVersion = '';
     var blueprintsEndpoint = '';
 
