@@ -95,3 +95,12 @@
     overflow-x: hidden;
     max-height: 150px;
 }
+
+.bl-catalog .modal-dialog .modal-body .archive-url {
+    margin-bottom: 20px;
+}
+
+.bl-catalog .modal-dialog .modal-body .archive-url .clipboard {
+    float: right;
+    font-size: small;
+}

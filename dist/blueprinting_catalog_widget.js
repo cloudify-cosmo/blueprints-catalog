@@ -133,9 +133,12 @@
                     $scope.selectNewVersion = function (version) {
                         var repo = $scope.uploadRepo;
 
+                        $scope.blueprint.url = repo.html_url + '/archive/' + version.name + '.zip';
+
                         $q.when(CatalogHelper.changeVersion(repo, version), function () {
-                            $scope.blueprint.url = repo.html_url + '/archive/' + version.name + '.zip';
-                            $scope.blueprint.path = repo.blueprintFiles[version.name][0];
+                            if ($scope.blueprint) {
+                                $scope.blueprint.path = repo.blueprintFiles[version.name][0];
+                            }
                         });
                     };
 
@@ -182,6 +185,59 @@
                 showUpload: '&'
             },
             templateUrl: 'repos_list_tpl.html'
+        };
+    }]);
+
+    catalog.directive('copyToClipboard', ['$document', '$log', function ($document, $log) {
+        return {
+            restrict: 'A',
+            scope: {
+                text: '='
+            },
+            link: function (scope, element) {
+
+                var _document = $document[0];
+
+                element.on('click', function () {
+                    copy(scope.text);
+                });
+
+                function copy(text) {
+                    var el = createElement(text);
+                    _document.body.appendChild(el);
+                    try {
+                        copyText(el);
+
+                        $log.debug(LOG_TAG, 'copied: ' + text);
+                    } catch (err) {
+                        $log.warn(LOG_TAG, 'command not supported by your browser', err);
+                    }
+                    _document.body.removeChild(el);
+                }
+
+                function createElement(text) {
+                    var el = _document.createElement('textarea');
+                    el.style.position = 'absolute';
+                    el.style.left = '-10000px';
+                    el.textContent = text;
+                    return el;
+                }
+
+                function copyText(el) {
+                    _document.body.style.webkitUserSelect = 'initial';
+
+                    var selection = _document.getSelection();
+                    selection.removeAllRanges();
+                    el.select();
+
+                    if(!_document.execCommand('copy')) {
+                        throw('failed to  copy');
+                    }
+                    selection.removeAllRanges();
+
+                    _document.body.style.webkitUserSelect = '';
+                }
+            }
         };
     }]);
 
@@ -367,7 +423,7 @@ angular.module('blueprintingCatalogWidget').run(['$templateCache', function($tem
 
 
   $templateCache.put('upload_tpl.html',
-    "<div class=\"modal-backdrop\"></div> <div class=\"modal\"> <div class=\"modal-dialog\"> <div class=\"modal-content no-header\"> <div class=\"modal-body\"> <form novalidate name=\"blueprintForm\"> <label> Blueprint ID<br> <input type=\"text\" ng-model=\"blueprint.id\" placeholder=\"enter blueprint name\" required> </label> <label> Manager Endpoint URL<br> <input type=\"url\" ng-model=\"managerEndpoint\" placeholder=\"enter manager url\" required> </label> <label> Blueprint File Name<br> <select ng-model=\"blueprint.path\" ng-options=\"b for b in uploadRepo.blueprintFiles[uploadRepo.currentVersion.name]\" required> </select> </label> <label> Source<br> <select ng-model=\"uploadRepo.currentVersion\" ng-change=\"selectNewVersion(uploadRepo.currentVersion);\" ng-options=\"v as v.name for v in uploadRepo.versionsList\" required> </select> </label> <div class=\"alert alert-danger\" ng-show=\"error\">{{error}}</div> </form> <div class=\"modal-buttons\"> <button class=\"btn btn-default\" ng-disabled=\"processing\" ng-click=\"closeUpload();\">Cancel</button> <button class=\"btn btn-primary\" ng-disabled=\"processing || blueprintForm.$invalid\" ng-click=\"uploadBlueprint();\"> <span ng-show=\"processing\">Uploading...</span> <span ng-hide=\"processing\">Upload</span> </button> </div> </div> </div> </div> </div>"
+    "<div class=\"modal-backdrop\"></div> <div class=\"modal\"> <div class=\"modal-dialog\"> <div class=\"modal-content no-header\"> <div class=\"modal-body\"> <form novalidate name=\"blueprintForm\"> <label> Blueprint ID<br> <input type=\"text\" ng-model=\"blueprint.id\" placeholder=\"enter blueprint name\" required> </label> <label> Manager Endpoint URL<br> <input type=\"url\" ng-model=\"managerEndpoint\" placeholder=\"enter manager url\" required> </label> <label> Blueprint File Name<br> <select ng-model=\"blueprint.path\" ng-options=\"b for b in uploadRepo.blueprintFiles[uploadRepo.currentVersion.name]\" required> </select> </label> <label class=\"archive-url\"> Source<br> <select ng-model=\"uploadRepo.currentVersion\" ng-change=\"selectNewVersion(uploadRepo.currentVersion);\" ng-options=\"v as v.name for v in uploadRepo.versionsList\" required> </select> <a href class=\"clipboard\" copy-to-clipboard data-text=\"blueprint.url\" style=\"float: right\">Copy to Clipboard</a> </label> <div class=\"alert alert-danger\" ng-show=\"error\">{{error}}</div> </form> <div class=\"modal-buttons\"> <button class=\"btn btn-default\" ng-disabled=\"processing\" ng-click=\"closeUpload();\">Cancel</button> <button class=\"btn btn-primary\" ng-disabled=\"processing || blueprintForm.$invalid\" ng-click=\"uploadBlueprint();\"> <span ng-show=\"processing\">Uploading...</span> <span ng-hide=\"processing\">Upload</span> </button> </div> </div> </div> </div> </div>"
   );
 
 }]);

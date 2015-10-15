@@ -133,9 +133,12 @@
                     $scope.selectNewVersion = function (version) {
                         var repo = $scope.uploadRepo;
 
+                        $scope.blueprint.url = repo.html_url + '/archive/' + version.name + '.zip';
+
                         $q.when(CatalogHelper.changeVersion(repo, version), function () {
-                            $scope.blueprint.url = repo.html_url + '/archive/' + version.name + '.zip';
-                            $scope.blueprint.path = repo.blueprintFiles[version.name][0];
+                            if ($scope.blueprint) {
+                                $scope.blueprint.path = repo.blueprintFiles[version.name][0];
+                            }
                         });
                     };
 
@@ -182,6 +185,59 @@
                 showUpload: '&'
             },
             templateUrl: 'repos_list_tpl.html'
+        };
+    }]);
+
+    catalog.directive('copyToClipboard', ['$document', '$log', function ($document, $log) {
+        return {
+            restrict: 'A',
+            scope: {
+                text: '='
+            },
+            link: function (scope, element) {
+
+                var _document = $document[0];
+
+                element.on('click', function () {
+                    copy(scope.text);
+                });
+
+                function copy(text) {
+                    var el = createElement(text);
+                    _document.body.appendChild(el);
+                    try {
+                        copyText(el);
+
+                        $log.debug(LOG_TAG, 'copied: ' + text);
+                    } catch (err) {
+                        $log.warn(LOG_TAG, 'command not supported by your browser', err);
+                    }
+                    _document.body.removeChild(el);
+                }
+
+                function createElement(text) {
+                    var el = _document.createElement('textarea');
+                    el.style.position = 'absolute';
+                    el.style.left = '-10000px';
+                    el.textContent = text;
+                    return el;
+                }
+
+                function copyText(el) {
+                    _document.body.style.webkitUserSelect = 'initial';
+
+                    var selection = _document.getSelection();
+                    selection.removeAllRanges();
+                    el.select();
+
+                    if(!_document.execCommand('copy')) {
+                        throw('failed to  copy');
+                    }
+                    selection.removeAllRanges();
+
+                    _document.body.style.webkitUserSelect = '';
+                }
+            }
         };
     }]);
 
