@@ -203,7 +203,7 @@
                 });
 
                 function copy(text) {
-                    var el = createElement(text);
+                    var el = createHiddenTexarea(text);
                     _document.body.appendChild(el);
                     try {
                         copyText(el);
@@ -215,27 +215,20 @@
                     _document.body.removeChild(el);
                 }
 
-                function createElement(text) {
+                function createHiddenTexarea(text) {
                     var el = _document.createElement('textarea');
                     el.style.position = 'absolute';
-                    el.style.left = '-10000px';
+                    el.style.left = '-5000px';
                     el.textContent = text;
                     return el;
                 }
 
                 function copyText(el) {
-                    _document.body.style.webkitUserSelect = 'initial';
-
-                    var selection = _document.getSelection();
-                    selection.removeAllRanges();
                     el.select();
 
-                    if(!_document.execCommand('copy')) {
+                    if (!_document.execCommand('copy')) {
                         throw('failed to  copy');
                     }
-                    selection.removeAllRanges();
-
-                    _document.body.style.webkitUserSelect = '';
                 }
             }
         };
