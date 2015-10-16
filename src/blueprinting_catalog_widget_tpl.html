@@ -16,9 +16,9 @@
             <div class="alert alert-danger" ng-show="githubLimit">
                 GitHub API rate limit exceeded. Please wait some time and refresh the page.
             </div>
-            <div ng-repeat="(type, model) in groups">
+            <div ng-repeat="model in groups | toArray | orderBy:'order'">
                 <repos-list data-repos="model.repos"
-                            data-type="type"
+                            data-type="model.name"
                             data-loading="model.loading"
                             data-can-upload="!githubLimit && model.canUpload"
                             data-show-details="navigateToDetails(repo)"

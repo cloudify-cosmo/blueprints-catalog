@@ -10,13 +10,19 @@
 
     var groups = {
         blueprints: {
+            order: 1,
+            name: 'blueprints',
             githubQuery: '-example+in:name+fork:true+user:cloudify-examples',
             canUpload: true
         },
         plugins: {
+            order: 2,
+            name: 'plugins',
             githubQuery: '-plugin+in:name+fork:true+user:cloudify-examples'
         },
         integrations: {
+            order: 3,
+            name: 'integrations',
             githubQuery: '-integration+in:name+fork:true+user:cloudify-examples'
         }
     };
@@ -86,7 +92,7 @@
                                 repos[i].canUpload = !!model.canUpload;
                             }
                             model.repos = repos;
-                        }).finally(function () {
+                        }, CatalogHelper.handleGithubLimit).finally(function () {
                             model.loading = false;
                         }));
                     });
@@ -268,6 +274,16 @@
         };
     }]);
 
+    catalog.filter("toArray", function () {
+        return function (obj) {
+            var result = [];
+            angular.forEach(obj, function (val) {
+                result.push(val);
+            });
+            return result;
+        };
+    });
+
     catalog.factory('CatalogHelper', ['Github', '$q', '$sce', '$log', function (Github, $q, $sce, $log) {
 
         return {
@@ -438,7 +454,7 @@ angular.module('blueprintingCatalogWidget').run(['$templateCache', function($tem
   'use strict';
 
   $templateCache.put('blueprinting_catalog_widget_tpl.html',
-    "<section class=\"bl-catalog\"> <!--List of repositories--> <div ng-show=\"!currentRepo\"> <div> <h1>{{::listTitle}}</h1> <p class=\"catalog-description\"> {{::listDescription}} <a ng-href=\"{{howUseLink}}\" target=\"_how_use\" ng-if=\"howUseLink\"><br>How to Use</a> <a ng-href=\"{{howContributeLink}}\" target=\"_how_contribute\" ng-if=\"howContributeLink\"><br>How to Contribute</a> </p> </div> <div> <div class=\"alert alert-danger\" ng-show=\"githubLimit\"> GitHub API rate limit exceeded. Please wait some time and refresh the page. </div> <div ng-repeat=\"(type, model) in groups\"> <repos-list data-repos=\"model.repos\" data-type=\"type\" data-loading=\"model.loading\" data-can-upload=\"!githubLimit && model.canUpload\" data-show-details=\"navigateToDetails(repo)\" data-show-upload=\"showUpload(repo)\"> </repos-list> </div> </div> </div> <!--Repository's details--> <div ng-show=\"currentRepo\"> <ng-include src=\"'repo_details_tpl.html'\"></ng-include> </div> <!--Upload popup--> <div ng-show=\"uploadRepo && !githubLimit\"> <ng-include src=\"'upload_tpl.html'\"></ng-include> </div> </section>"
+    "<section class=\"bl-catalog\"> <!--List of repositories--> <div ng-show=\"!currentRepo\"> <div> <h1>{{::listTitle}}</h1> <p class=\"catalog-description\"> {{::listDescription}} <a ng-href=\"{{howUseLink}}\" target=\"_how_use\" ng-if=\"howUseLink\"><br>How to Use</a> <a ng-href=\"{{howContributeLink}}\" target=\"_how_contribute\" ng-if=\"howContributeLink\"><br>How to Contribute</a> </p> </div> <div> <div class=\"alert alert-danger\" ng-show=\"githubLimit\"> GitHub API rate limit exceeded. Please wait some time and refresh the page. </div> <div ng-repeat=\"model in groups | toArray | orderBy:'order'\"> <repos-list data-repos=\"model.repos\" data-type=\"model.name\" data-loading=\"model.loading\" data-can-upload=\"!githubLimit && model.canUpload\" data-show-details=\"navigateToDetails(repo)\" data-show-upload=\"showUpload(repo)\"> </repos-list> </div> </div> </div> <!--Repository's details--> <div ng-show=\"currentRepo\"> <ng-include src=\"'repo_details_tpl.html'\"></ng-include> </div> <!--Upload popup--> <div ng-show=\"uploadRepo && !githubLimit\"> <ng-include src=\"'upload_tpl.html'\"></ng-include> </div> </section>"
   );
 
 

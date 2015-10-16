@@ -10,13 +10,19 @@
 
     var groups = {
         blueprints: {
+            order: 1,
+            name: 'blueprints',
             githubQuery: '-example+in:name+fork:true+user:cloudify-examples',
             canUpload: true
         },
         plugins: {
+            order: 2,
+            name: 'plugins',
             githubQuery: '-plugin+in:name+fork:true+user:cloudify-examples'
         },
         integrations: {
+            order: 3,
+            name: 'integrations',
             githubQuery: '-integration+in:name+fork:true+user:cloudify-examples'
         }
     };
@@ -86,7 +92,7 @@
                                 repos[i].canUpload = !!model.canUpload;
                             }
                             model.repos = repos;
-                        }).finally(function () {
+                        }, CatalogHelper.handleGithubLimit).finally(function () {
                             model.loading = false;
                         }));
                     });
@@ -267,6 +273,16 @@
             }
         };
     }]);
+
+    catalog.filter("toArray", function () {
+        return function (obj) {
+            var result = [];
+            angular.forEach(obj, function (val) {
+                result.push(val);
+            });
+            return result;
+        };
+    });
 
     catalog.factory('CatalogHelper', ['Github', '$q', '$sce', '$log', function (Github, $q, $sce, $log) {
 
