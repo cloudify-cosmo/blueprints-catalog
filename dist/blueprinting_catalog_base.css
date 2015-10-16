@@ -34,6 +34,10 @@
     content: '\227A';
 }
 
+.bl-catalog .search-repos h4 {
+    text-transform: capitalize;
+}
+
 .bl-catalog .modal-backdrop {
     position: fixed;
     top: 0;

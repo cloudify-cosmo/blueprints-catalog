@@ -3,14 +3,14 @@
     <div class="modal-dialog">
         <div class="modal-content no-header">
             <div class="modal-body">
-                <form novalidate name="blueprintForm">
+                <form novalidate name="$parent.blueprintForm">
                     <label>
                         Blueprint ID<br/>
                         <input type="text" ng-model="blueprint.id" placeholder="enter blueprint name" required/>
                     </label>
                     <label>
                         Manager Endpoint URL<br/>
-                        <input type="url" ng-model="managerEndpoint" placeholder="enter manager url" required/>
+                        <input type="url" ng-model="$parent.managerEndpoint" placeholder="enter manager url" required/>
                     </label>
                     <label>
                         Blueprint File Name<br/>
