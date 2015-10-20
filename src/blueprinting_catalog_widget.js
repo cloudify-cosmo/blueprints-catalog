@@ -243,7 +243,7 @@
                 });
 
                 function copy(text) {
-                    var el = createHiddenTexarea(text);
+                    var el = createHiddenTextarea(text);
                     _document.body.appendChild(el);
                     try {
                         copyText(el);
@@ -258,7 +258,7 @@
                     _document.body.removeChild(el);
                 }
 
-                function createHiddenTexarea(text) {
+                function createHiddenTextarea(text) {
                     var el = _document.createElement('textarea');
                     el.style.position = 'absolute';
                     el.style.left = '-5000px';

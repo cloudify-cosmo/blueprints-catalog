@@ -23,7 +23,7 @@
                         <select ng-model="uploadRepo.currentVersion" ng-change="selectNewVersion(uploadRepo.currentVersion);"
                                 ng-options="v as v.name for v in uploadRepo.versionsList" required>
                         </select>
-                        <a href class="clipboard" copy-to-clipboard data-text="blueprint.url" style="float: right;">Copy to Clipboard</a>
+                        <a href class="clipboard" copy-to-clipboard data-text="blueprint.url">Copy to Clipboard</a>
                     </label>
 
                     <div class="alert alert-danger" ng-show="error">{{error}}</div>
