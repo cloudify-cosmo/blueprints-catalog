@@ -1,77 +1,68 @@
 'use strict';
 
-(function () {
-    var catalog = angular.module('blueprintingCatalogWidget', []);
+angular.module('blueprintingCatalogWidget', [])
 
-    var LOG_TAG = 'BLUEPRINTING CATALOG WIDGET';
-    var defaultError = 'unexpected error occurred';
-
-    var blueprintRegex = /blueprint.yaml$/i;
-
-    var groups = {
-        blueprints: {
-            order: 1,
-            name: 'blueprints',
-            githubQuery: '-example+in:name+fork:true+user:cloudify-examples',
-            canUpload: true
-        },
-        plugins: {
-            order: 2,
-            name: 'plugins',
-            githubQuery: '-plugin+in:name+fork:true+user:cloudify-examples'
-        },
-        integrations: {
-            order: 3,
-            name: 'integrations',
-            githubQuery: '-integration+in:name+fork:true+user:cloudify-examples'
+    .constant('widgetDefaults', {
+        repoGroups: {
+            blueprints: {
+                order: 1,
+                name: 'blueprints',
+                githubQuery: '-example+in:name+fork:true+user:cloudify-examples',
+                canUpload: true
+            },
+            plugins: {
+                order: 2,
+                name: 'plugins',
+                githubQuery: '-plugin+in:name+fork:true+user:cloudify-examples'
+            },
+            integrations: {
+                order: 3,
+                name: 'integrations',
+                githubQuery: '-integration+in:name+fork:true+user:cloudify-examples'
+            }
         }
-    };
+    });
 
-    var defaultVersion = '';
-    var defaultVersionFallback = '';
-    var catalogDefaultManager = '';
-    var catalogCorsProxy = '';
+'use strict';
 
-    var __scope;
+(function () {
+    var LOGGER = 'BCW SERVICES';
 
-    catalog.directive('blueprintingCatalog', ['Github', 'CloudifyManager', 'CatalogHelper', '$location', '$q', '$log',
-        function (Github, CloudifyManager, CatalogHelper, $location, $q, $log) {
+    var DEFAULT_ERROR = 'unexpected error occurred';
+
+    var BLUEPRINT_FILE_REGEX = /blueprint.yaml$/i;
+
+    angular.module('blueprintingCatalogWidget')
+
+        .factory('WidgetConfig', ['widgetDefaults', function (widgetDefaults) {
+
+            var repoGroups,
+                defaultVersion, defaultVersionFallback,
+                catalogDefaultManager, catalogCorsProxy,
+                initialized = false;
 
             return {
-                restrict: 'A',
-                scope: {
-                    blueprintsGithubQuery: '@catalogBlueprintsGithubQuery',
-                    pluginsGithubQuery: '@catalogPluginsGithubQuery',
-                    integrationsGithubQuery: '@catalogIntegrationsGithubQuery',
-                    listTitle: '@catalogListTitle',
-                    listDescription: '@catalogListDescription',
-                    howUseLink: '@catalogHowUseLink',
-                    howContributeLink: '@catalogHowContributeLink',
-                    backText: '@catalogBackText',
-                    catalogDefaultManager: '@catalogDefaultManager',
-                    catalogCorsProxy: '@catalogCorsProxy',
-                    defaultVersion: '@catalogDefaultVersion',
-                    defaultVersionFallback: '@catalogDefaultVersionFallback'
-                },
-                templateUrl: 'blueprinting_catalog_widget_tpl.html',
-                link: function ($scope) {
-                    __scope = $scope;
+
+                initConfig: function ($scope) {
+                    repoGroups = angular.copy(widgetDefaults.repoGroups);
 
                     if ($scope.blueprintsGithubQuery) {
-                        groups.blueprints.githubQuery = $scope.blueprintsGithubQuery;
+                        repoGroups.blueprints.githubQuery = $scope.blueprintsGithubQuery;
                     }
                     if ($scope.pluginsGithubQuery) {
-                        groups.plugins.githubQuery = $scope.pluginsGithubQuery;
+                        repoGroups.plugins.githubQuery = $scope.pluginsGithubQuery;
                     }
                     if ($scope.integrationsGithubQuery) {
-                        groups.integrations.githubQuery = $scope.integrationsGithubQuery;
+                        repoGroups.integrations.githubQuery = $scope.integrationsGithubQuery;
                     }
+
                     if ($scope.defaultVersion) {
                         defaultVersion = $scope.defaultVersion;
                     }
                     if ($scope.defaultVersionFallback) {
                         defaultVersionFallback = $scope.defaultVersionFallback;
                     }
+
                     if ($scope.catalogDefaultManager) {
                         catalogDefaultManager = $scope.catalogDefaultManager;
                     }
@@ -79,205 +70,222 @@
                         catalogCorsProxy = $scope.catalogCorsProxy;
                     }
 
-                    $scope.groups = groups;
+                    initialized = true;
+                },
 
-                    var reposDefers = [];
-                    angular.forEach(groups, function (model, type) {
-                        model.loading = true;
-                        reposDefers.push(Github.getRepositories(model.githubQuery).then(function (response) {
-                            $log.debug(LOG_TAG, 'fetched repos ', type, response);
+                checkConfig: function () {
+                    if (!initialized) {
+                        throw new Error('configuration was not initialized');
+                    }
+                },
 
-                            var repos = response.data && response.data.items || [];
-                            for (var i = 0, len = repos.length; i < len; i++) {
-                                repos[i].canUpload = !!model.canUpload;
-                            }
-                            model.repos = repos;
-                        }, CatalogHelper.handleGithubLimit).finally(function () {
-                            model.loading = false;
-                        }));
-                    });
+                getRepoGroups: function () {
+                    this.checkConfig();
 
-                    $scope.$watch(function () {
-                        return $location.search().repo;
-                    }, function (repoId) {
-                        if (repoId) {
-                            $q.all(reposDefers).then(function () {
-                                var repos;
-                                for (var type in groups) {
-                                    if (groups.hasOwnProperty(type)) {
-                                        repos = groups[type].repos;
-                                        for (var i = 0, len = repos.length, repo; i < len; i++) {
-                                            repo = repos[i];
-                                            if (repo.id === +repoId) {
-                                                $scope.showDetails(repo);
-                                                return;
-                                            }
-                                        }
-                                    }
-                                }
-                            });
-                        } else {
-                            $scope.showList();
-                        }
-                    });
+                    return repoGroups;
+                },
 
-                    $scope.navigateToDetails = function (repo) {
-                        $location.search('repo', repo.id);
-                    };
+                getDefaultVersion: function () {
+                    this.checkConfig();
 
-                    $scope.navigateToList = function () {
-                        $location.replace();
-                        $location.search('repo', ''); //do not use NULL in order to avoid full page reload
-                    };
+                    return defaultVersion;
+                },
 
-                    $scope.showDetails = function (repo) {
-                        $q.when(CatalogHelper.fillVersions(repo), function () {
-                            if (repo.currentVersion) {
-                                CatalogHelper.fillReadme(repo, repo.currentVersion);
-                            }
-                        });
+                getDefaultVersionFallback: function () {
+                    this.checkConfig();
 
-                        $scope.currentRepo = repo;
-                    };
+                    return defaultVersionFallback;
+                },
 
-                    $scope.switchVersion = function (version) {
-                        CatalogHelper.changeVersion($scope.currentRepo, version);
-                    };
+                getDefaultManager: function () {
+                    this.checkConfig();
 
-                    $scope.showList = function () {
-                        $scope.currentRepo = undefined;
-                    };
+                    return catalogDefaultManager;
+                },
 
-                    $scope.showUpload = function (repo) {
-                        $log.debug(LOG_TAG, 'show upload', repo);
+                getCorsProxy: function () {
+                    this.checkConfig();
 
-                        $q.when(CatalogHelper.fillVersions(repo), function () {
-                            if (repo.currentVersion) {
-                                $scope.blueprint.url = repo.html_url + '/archive/' + repo.currentVersion.name + '.zip';
-                                $q.when(CatalogHelper.fillBlueprints(repo, repo.currentVersion), function () {
-                                    var files = repo.blueprintFiles[repo.currentVersion.name];
-                                    $scope.blueprint.path = files && files[0] || '';
-                                });
-                            }
-                        });
-
-                        $scope.managerEndpoint = catalogDefaultManager;
-                        $scope.blueprint = {
-                            id: repo.name
-                        };
-
-                        $scope.uploadRepo = repo;
-                    };
-
-                    $scope.selectNewVersion = function (version) {
-                        var repo = $scope.uploadRepo;
-
-                        $scope.blueprint.url = repo.html_url + '/archive/' + version.name + '.zip';
-
-                        $q.when(CatalogHelper.changeVersion(repo, version), function () {
-                            if ($scope.blueprint) {
-                                $scope.blueprint.path = repo.blueprintFiles[version.name][0];
-                            }
-                        });
-                    };
-
-                    $scope.closeUpload = function () {
-                        $scope.error = undefined;
-                        $scope.uploadRepo = undefined;
-                        $scope.blueprint = undefined;
-                    };
-
-                    $scope.uploadBlueprint = function () {
-                        $log.debug(LOG_TAG, 'do upload');
-
-                        if ($scope.blueprintForm.$valid) {
-
-                            $scope.processing = true;
-                            $scope.error = undefined;
-                            CloudifyManager.upload($scope.managerEndpoint, $scope.blueprint)
-                                .then(function () {
-                                    $scope.uploadRepo = undefined;
-                                }, function (response) {
-                                    $log.debug(LOG_TAG, 'upload failed', response);
-
-                                    $scope.error = CatalogHelper.getErrorFromResponse(response);
-                                })
-                                .finally(function () {
-                                    $scope.processing = false;
-                                });
-                        }
-                    };
+                    return catalogCorsProxy;
                 }
             };
 
+        }])
+
+        .factory('CatalogHelper', ['Github', 'WidgetConfig', '$q', '$sce', '$log', function (Github, WidgetConfig, $q, $sce, $log) {
+
+            return {
+                changeVersion: function (repo, version, $scope) {
+                    $log.debug(LOGGER, 'change version to', version);
+
+                    repo.currentVersion = version;
+
+                    return $q.all([
+                        this.fillReadme(repo, version, $scope),
+                        this.fillBlueprints(repo, version, $scope)
+                    ]);
+                },
+
+                fillVersions: function (repo, $scope) {
+                    if (!repo.versionsList) {
+                        $log.debug(LOGGER, 'filling branches & tags for repo', repo);
+
+                        var versionsList = [];
+                        var tagsPromise = Github.getTags(repo.url);
+                        var branchesPromise = Github.getBranches(repo.url);
+
+                        return $q.all([branchesPromise, tagsPromise]).then(function (response) {
+                            versionsList = versionsList.concat(response[0].data || []).concat(response[1].data || []);
+                            var repoDefaultVersionName = WidgetConfig.getDefaultVersion() || WidgetConfig.getDefaultVersionFallback();
+                            var repoDefaultBranchName = repo.default_branch;
+                            var repoDefaultVersion, repoDefaultBranch;
+                            for (var i = 0, len = versionsList.length, v; i < len; i++) {
+                                v = versionsList[i];
+                                if (v.name === repoDefaultVersionName) {
+                                    repoDefaultVersion = v;
+                                }
+                                if (v.name === repoDefaultBranchName) {
+                                    repoDefaultBranch = v;
+                                }
+                            }
+                            repo.currentVersion = repoDefaultVersion || repoDefaultBranch;
+
+                            repo.versionsList = versionsList;
+                        }, this.handleGithubLimit($scope));
+                    }
+                },
+
+                fillBlueprints: function (repo, version, $scope) {
+                    repo.blueprintFiles = repo.blueprintFiles || {};
+                    if (!repo.blueprintFiles[version.name]) {
+                        $log.debug(LOGGER, 'filling blueprints for repo', repo);
+
+                        return Github.getTree(repo.url, version.commit.sha).then(function (response) {
+                            var blueprints = [];
+                            var files = response.data && response.data.tree || [];
+                            for (var i = 0, len = files.length, f; i < len; i++) {
+                                f = files[i];
+                                if (f.type === 'blob' && BLUEPRINT_FILE_REGEX.test(f.path)) {
+                                    blueprints.push(f.path);
+                                }
+                            }
+                            repo.blueprintFiles[version.name] = blueprints;
+                        }, this.handleGithubLimit($scope));
+                    }
+                },
+
+                fillReadme: function (repo, version, $scope) {
+                    repo.readmeContents = repo.readmeContents || {};
+                    if (!repo.readmeContents[version.name]) {
+                        $log.debug(LOGGER, 'filling readme for repo', repo);
+
+                        return Github.getReadme(repo.url, version.name).then(function (response) {
+                            repo.readmeContents[version.name] = $sce.trustAsHtml(response.data || 'No Readme File');
+                        }, this.handleGithubLimit($scope));
+                    }
+                },
+
+                handleGithubLimit: function ($scope) {
+                    return function (response) {
+                        if (response.status === 403 && response.headers('X-RateLimit-Remaining') === '0') {
+                            $scope.githubLimit = true;
+                        }
+                    };
+                },
+
+                getErrorFromResponse: function (response) {
+                    if (response && response.data) {
+                        if (typeof response.data === 'string') {
+                            return response.data;
+                        } else {
+                            return response.data.message || DEFAULT_ERROR;
+                        }
+                    } else {
+                        return DEFAULT_ERROR;
+                    }
+                }
+            };
+        }])
+
+        .factory('Github', ['$http', function ($http) {
+            var endpoint = 'https://api.github.com';
+
+            return {
+                getRepositories: function (query) {
+                    return $http({
+                        method: 'GET',
+                        url: endpoint + '/search/repositories?q=' + query
+                    });
+                },
+                getTags: function (repo_url) {
+                    return $http({
+                        method: 'GET',
+                        url: repo_url + '/tags'
+                    });
+                },
+                getBranches: function (repo_url) {
+                    return $http({
+                        method: 'GET',
+                        url: repo_url + '/branches'
+                    });
+                },
+                getReadme: function (repo_url, version) {
+                    return $http({
+                        method: 'GET',
+                        url: repo_url + '/readme' + (version ? '?ref=' + encodeURIComponent(version) : ''),
+                        headers: {
+                            'Accept': 'application/vnd.github.html+json'
+                        }
+                    });
+                },
+                getTree: function (repo_url, sha) {
+                    return $http({
+                        method: 'GET',
+                        url: repo_url + '/git/trees/' + sha
+                    });
+                }
+            };
+        }])
+
+        .factory('CloudifyManager', ['$http', function ($http) {
+
+            return {
+                upload: function doUpload(endpoint, blueprint, catalogCorsProxy) {
+                    var queryParams = [], query, url;
+                    if (blueprint.path) {
+                        queryParams.push('application_file_name=' + encodeURIComponent(blueprint.path));
+                    }
+                    if (blueprint.url) {
+                        queryParams.push('blueprint_archive_url=' + encodeURIComponent(blueprint.url));
+                    }
+                    query = queryParams.length ? ('?' + queryParams.join('&')) : '';
+                    url = endpoint + '/blueprints/' + encodeURIComponent(blueprint.id) + query;
+
+                    if (catalogCorsProxy) {
+                        return $http({
+                            method: 'POST',
+                            url: catalogCorsProxy,
+                            data: {
+                                method: 'PUT',
+                                url: url
+                            }
+                        });
+                    } else {
+                        return $http({
+                            method: 'PUT',
+                            url: url
+                        });
+                    }
+                }
+            };
         }]);
+})();
 
-    catalog.directive('reposList', [function () {
-        return {
-            restrict: 'E',
-            replace: true,
-            scope: {
-                repos: '=',
-                type: '=',
-                loading: '=',
-                canUpload: '=',
-                showDetails: '&',
-                showUpload: '&'
-            },
-            templateUrl: 'repos_list_tpl.html'
-        };
-    }]);
+'use strict';
 
-    catalog.directive('copyToClipboard', ['$window', '$log', function ($window, $log) {
-        return {
-            restrict: 'A',
-            scope: {
-                text: '='
-            },
-            link: function (scope, element) {
+angular.module('blueprintingCatalogWidget')
 
-                var _document = $window.document;
-
-                element.on('click', function () {
-                    copy(scope.text);
-                });
-
-                function copy(text) {
-                    var el = createHiddenTextarea(text);
-                    _document.body.appendChild(el);
-                    try {
-                        copyText(el);
-
-                        $log.debug(LOG_TAG, 'copied: ' + text);
-                    } catch (err) {
-                        $log.warn(LOG_TAG, 'command not supported by your browser', err);
-                        $log.warn(LOG_TAG, 'using fallback impl.');
-
-                        $window.prompt("Copy to clipboard & hit enter", text);
-                    }
-                    _document.body.removeChild(el);
-                }
-
-                function createHiddenTextarea(text) {
-                    var el = _document.createElement('textarea');
-                    el.style.position = 'absolute';
-                    el.style.left = '-5000px';
-                    el.textContent = text;
-                    return el;
-                }
-
-                function copyText(el) {
-                    el.select();
-
-                    if (!_document.execCommand('copy')) {
-                        throw('failed to  copy');
-                    }
-                }
-            }
-        };
-    }]);
-
-    catalog.filter("toArray", function () {
+    .filter("toArray", function () {
         return function (obj) {
             var result = [];
             angular.forEach(obj, function (val) {
@@ -287,171 +295,234 @@
         };
     });
 
-    catalog.factory('CatalogHelper', ['Github', '$q', '$sce', '$log', function (Github, $q, $sce, $log) {
+'use strict';
 
-        return {
-            changeVersion: function (repo, version) {
-                $log.debug(LOG_TAG, 'change version to', version);
+(function () {
+    var LOGGER = 'BCW DIRECTIVES';
 
-                repo.currentVersion = version;
+    angular.module('blueprintingCatalogWidget')
 
-                return $q.all([
-                    this.fillReadme(repo, version),
-                    this.fillBlueprints(repo, version)
-                ]);
-            },
+        .directive('blueprintingCatalog', ['Github', 'CloudifyManager', 'CatalogHelper', 'WidgetConfig', '$location', '$q', '$log',
+            function (Github, CloudifyManager, CatalogHelper, WidgetConfig, $location, $q, $log) {
 
-            fillVersions: function (repo) {
-                if (!repo.versionsList) {
-                    $log.debug(LOG_TAG, 'filling branches & tags for repo', repo);
+                return {
+                    restrict: 'A',
+                    scope: {
+                        blueprintsGithubQuery: '@catalogBlueprintsGithubQuery',
+                        pluginsGithubQuery: '@catalogPluginsGithubQuery',
+                        integrationsGithubQuery: '@catalogIntegrationsGithubQuery',
+                        listTitle: '@catalogListTitle',
+                        listDescription: '@catalogListDescription',
+                        howUseLink: '@catalogHowUseLink',
+                        howContributeLink: '@catalogHowContributeLink',
+                        backText: '@catalogBackText',
+                        catalogDefaultManager: '@catalogDefaultManager',
+                        catalogCorsProxy: '@catalogCorsProxy',
+                        defaultVersion: '@catalogDefaultVersion',
+                        defaultVersionFallback: '@catalogDefaultVersionFallback'
+                    },
+                    templateUrl: 'blueprinting_catalog_widget_tpl.html',
+                    link: function ($scope) {
+                        WidgetConfig.initConfig($scope);
 
-                    var versionsList = [];
-                    var tagsPromise = Github.getTags(repo.url);
-                    var branchesPromise = Github.getBranches(repo.url);
+                        $scope.groups = WidgetConfig.getRepoGroups();
 
-                    return $q.all([branchesPromise, tagsPromise]).then(function (response) {
-                        versionsList = versionsList.concat(response[0].data || []).concat(response[1].data || []);
-                        var repoDefaultVersionName = defaultVersion || defaultVersionFallback;
-                        var repoDefaultBranchName = repo.default_branch;
-                        var repoDefaultVersion, repoDefaultBranch;
-                        for (var i = 0, len = versionsList.length, v; i < len; i++) {
-                            v = versionsList[i];
-                            if (v.name === repoDefaultVersionName) {
-                                repoDefaultVersion = v;
+                        var reposDefers = [];
+                        angular.forEach($scope.groups, function (model, type) {
+                            model.loading = true;
+                            reposDefers.push(Github.getRepositories(model.githubQuery).then(function (response) {
+                                $log.debug(LOGGER, 'fetched repos ', type, response);
+
+                                var repos = response.data && response.data.items || [];
+                                for (var i = 0, len = repos.length; i < len; i++) {
+                                    repos[i].canUpload = !!model.canUpload;
+                                }
+                                model.repos = repos;
+                            }, CatalogHelper.handleGithubLimit($scope)).finally(function () {
+                                model.loading = false;
+                            }));
+                        });
+
+                        $location.search('list', true);
+                        $scope.$watch(function () {
+                            return $location.search().repo;
+                        }, function (repoId) {
+                            if (repoId) {
+                                $q.all(reposDefers).then(function () {
+                                    var repos;
+                                    for (var type in $scope.groups) {
+                                        if ($scope.groups.hasOwnProperty(type)) {
+                                            repos = $scope.groups[type].repos;
+                                            for (var i = 0, len = repos.length, repo; i < len; i++) {
+                                                repo = repos[i];
+                                                if (repo.id === +repoId) {
+                                                    $scope.showDetails(repo);
+                                                    return;
+                                                }
+                                            }
+                                        }
+                                    }
+                                });
+                            } else {
+                                $scope.showList();
                             }
-                            if (v.name === repoDefaultBranchName) {
-                                repoDefaultBranch = v;
+                        });
+
+                        $scope.navigateToDetails = function (repo) {
+                            $location.search('repo', repo.id);
+                        };
+
+                        $scope.navigateToList = function () {
+                            $location.replace();
+                            $location.search('repo', null); //do not use NULL in order to avoid full page reload
+                        };
+
+                        $scope.showDetails = function (repo) {
+                            $q.when(CatalogHelper.fillVersions(repo, $scope), function () {
+                                if (repo.currentVersion) {
+                                    CatalogHelper.fillReadme(repo, repo.currentVersion, $scope);
+                                }
+                            });
+
+                            $scope.currentRepo = repo;
+                        };
+
+                        $scope.switchVersion = function (version) {
+                            CatalogHelper.changeVersion($scope.currentRepo, version, $scope);
+                        };
+
+                        $scope.showList = function () {
+                            $scope.currentRepo = undefined;
+                        };
+
+                        $scope.showUpload = function (repo) {
+                            $log.debug(LOGGER, 'show upload', repo);
+
+                            $q.when(CatalogHelper.fillVersions(repo, $scope), function () {
+                                if (repo.currentVersion) {
+                                    $scope.blueprint.url = repo.html_url + '/archive/' + repo.currentVersion.name + '.zip';
+                                    $q.when(CatalogHelper.fillBlueprints(repo, repo.currentVersion, $scope), function () {
+                                        var files = repo.blueprintFiles[repo.currentVersion.name];
+                                        $scope.blueprint.path = files && files[0] || '';
+                                    });
+                                }
+                            });
+
+                            $scope.managerEndpoint = WidgetConfig.getDefaultManager();
+                            $scope.blueprint = {
+                                id: repo.name
+                            };
+
+                            $scope.uploadRepo = repo;
+                        };
+
+                        $scope.selectNewVersion = function (version) {
+                            var repo = $scope.uploadRepo;
+
+                            $scope.blueprint.url = repo.html_url + '/archive/' + version.name + '.zip';
+
+                            $q.when(CatalogHelper.changeVersion(repo, version, $scope), function () {
+                                if ($scope.blueprint) {
+                                    $scope.blueprint.path = repo.blueprintFiles[version.name][0];
+                                }
+                            });
+                        };
+
+                        $scope.closeUpload = function () {
+                            $scope.error = undefined;
+                            $scope.uploadRepo = undefined;
+                            $scope.blueprint = undefined;
+                        };
+
+                        $scope.uploadBlueprint = function () {
+                            $log.debug(LOGGER, 'do upload');
+
+                            if ($scope.blueprintForm.$valid) {
+
+                                $scope.processing = true;
+                                $scope.error = undefined;
+                                CloudifyManager.upload($scope.managerEndpoint, $scope.blueprint, WidgetConfig.getCorsProxy())
+                                    .then(function () {
+                                        $scope.uploadRepo = undefined;
+                                    }, function (response) {
+                                        $log.debug(LOGGER, 'upload failed', response);
+
+                                        $scope.error = CatalogHelper.getErrorFromResponse(response);
+                                    })
+                                    .finally(function () {
+                                        $scope.processing = false;
+                                    });
                             }
-                        }
-                        repo.currentVersion = repoDefaultVersion || repoDefaultBranch;
-
-                        repo.versionsList = versionsList;
-                    }, this.handleGithubLimit);
-                }
-            },
-
-            fillBlueprints: function (repo, version) {
-                repo.blueprintFiles = repo.blueprintFiles || {};
-                if (!repo.blueprintFiles[version.name]) {
-                    $log.debug(LOG_TAG, 'filling blueprints for repo', repo);
-
-                    return Github.getTree(repo.url, version.commit.sha).then(function (response) {
-                        var blueprints = [];
-                        var files = response.data && response.data.tree || [];
-                        for (var i = 0, len = files.length, f; i < len; i++) {
-                            f = files[i];
-                            if (f.type === 'blob' && blueprintRegex.test(f.path)) {
-                                blueprints.push(f.path);
-                            }
-                        }
-                        repo.blueprintFiles[version.name] = blueprints;
-                    }, this.handleGithubLimit);
-                }
-            },
-
-            fillReadme: function (repo, version) {
-                repo.readmeContents = repo.readmeContents || {};
-                if (!repo.readmeContents[version.name]) {
-                    $log.debug(LOG_TAG, 'filling readme for repo', repo);
-
-                    return Github.getReadme(repo.url, version.name).then(function (response) {
-                        repo.readmeContents[version.name] = $sce.trustAsHtml(response.data || 'No Readme File');
-                    }, this.handleGithubLimit);
-                }
-            },
-
-            handleGithubLimit: function (response) {
-                if (response.status === 403 && response.headers('X-RateLimit-Remaining') === '0') {
-                    __scope.githubLimit = true;
-                }
-            },
-
-            getErrorFromResponse: function (response) {
-                if (response && response.data) {
-                    if (typeof response.data === 'string') {
-                        return response.data;
-                    } else {
-                        return response.data.message || defaultError;
+                        };
                     }
-                } else {
-                    return defaultError;
-                }
-            }
-        };
-    }]);
+                };
 
-    catalog.factory('Github', ['$http', function ($http) {
-        var endpoint = 'https://api.github.com';
+            }])
 
-        return {
-            getRepositories: function (query) {
-                return $http({
-                    method: 'GET',
-                    url: endpoint + '/search/repositories?q=' + query
-                });
-            },
-            getTags: function (repo_url) {
-                return $http({
-                    method: 'GET',
-                    url: repo_url + '/tags'
-                });
-            },
-            getBranches: function (repo_url) {
-                return $http({
-                    method: 'GET',
-                    url: repo_url + '/branches'
-                });
-            },
-            getReadme: function (repo_url, version) {
-                return $http({
-                    method: 'GET',
-                    url: repo_url + '/readme' + (version ? '?ref=' + encodeURIComponent(version) : ''),
-                    headers: {
-                        'Accept': 'application/vnd.github.html+json'
-                    }
-                });
-            },
-            getTree: function (repo_url, sha) {
-                return $http({
-                    method: 'GET',
-                    url: repo_url + '/git/trees/' + sha
-                });
-            }
-        };
-    }]);
+        .directive('reposList', [function () {
+            return {
+                restrict: 'E',
+                replace: true,
+                scope: {
+                    repos: '=',
+                    type: '=',
+                    loading: '=',
+                    canUpload: '=',
+                    showDetails: '&',
+                    showUpload: '&'
+                },
+                templateUrl: 'repos_list_tpl.html'
+            };
+        }])
 
-    catalog.factory('CloudifyManager', ['$http', function ($http) {
+        .directive('copyToClipboard', ['$window', '$log', function ($window, $log) {
+            return {
+                restrict: 'A',
+                scope: {
+                    text: '='
+                },
+                link: function (scope, element) {
 
-        return {
-            upload: function doUpload(endpoint, blueprint) {
-                var queryParams = [], query, url;
-                if (blueprint.path) {
-                    queryParams.push('application_file_name=' + encodeURIComponent(blueprint.path));
-                }
-                if (blueprint.url) {
-                    queryParams.push('blueprint_archive_url=' + encodeURIComponent(blueprint.url));
-                }
-                query = queryParams.length ? ('?' + queryParams.join('&')) : '';
-                url = endpoint + '/blueprints/' + encodeURIComponent(blueprint.id) + query;
+                    var _document = $window.document;
 
-                if (catalogCorsProxy) {
-                    return $http({
-                        method: 'POST',
-                        url: catalogCorsProxy,
-                        data: {
-                            method: 'PUT',
-                            url: url
+                    element.on('click', function () {
+                        copy(scope.text);
+                    });
+
+                    function copy(text) {
+                        var el = createHiddenTextarea(text);
+                        _document.body.appendChild(el);
+                        try {
+                            copyText(el);
+
+                            $log.debug(LOGGER, 'copied: ' + text);
+                        } catch (err) {
+                            $log.warn(LOGGER, 'command not supported by your browser', err);
+                            $log.warn(LOGGER, 'using fallback impl.');
+
+                            $window.prompt("Copy to clipboard & hit enter", text);
                         }
-                    });
-                } else {
-                    return $http({
-                        method: 'PUT',
-                        url: url
-                    });
+                        _document.body.removeChild(el);
+                    }
+
+                    function createHiddenTextarea(text) {
+                        var el = _document.createElement('textarea');
+                        el.style.position = 'absolute';
+                        el.style.left = '-5000px';
+                        el.textContent = text;
+                        return el;
+                    }
+
+                    function copyText(el) {
+                        el.select();
+
+                        if (!_document.execCommand('copy')) {
+                            throw('failed to  copy');
+                        }
+                    }
                 }
-            }
-        };
-    }]);
+            };
+        }]);
 })();
 angular.module('blueprintingCatalogWidget').run(['$templateCache', function($templateCache) {
   'use strict';

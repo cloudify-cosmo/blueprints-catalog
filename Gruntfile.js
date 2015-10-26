@@ -26,6 +26,39 @@ module.exports = function (grunt) {
         },
         //===
 
+        // concat files
+        concat: {
+            options: {
+            },
+            dist: {
+                src: [
+                    'src/*.module.js',
+                    'src/*.services.js',
+                    'src/*.filters.js',
+                    'src/*.directives.js'
+                ],
+                dest: 'dist/blueprinting_catalog_widget.js'
+            }
+        },
+        //===
+
+        // copy files to dist folder
+        copy: {
+            dist: {
+                files: [{
+                    expand: true,
+                    dot: true,
+                    cwd: 'src',
+                    dest: 'dist',
+                    src: [
+                        'blueprinting_catalog_app.js',
+                        '*.css'
+                    ]
+                }]
+            }
+        },
+        //===
+
         // compile angular templates
         ngtemplates: {
             dist: {
@@ -43,23 +76,6 @@ module.exports = function (grunt) {
                 src: ['*.html'],
 
                 dest: 'dist/blueprinting_catalog_widget.js'
-            }
-        },
-        //===
-
-        // copy files to dist folder
-        copy: {
-            dist: {
-                files: [{
-                    expand: true,
-                    dot: true,
-                    cwd: 'src',
-                    dest: 'dist',
-                    src: [
-                        '*.js',
-                        '*.css'
-                    ]
-                }]
             }
         },
         //===
@@ -129,6 +145,7 @@ module.exports = function (grunt) {
 
     grunt.loadNpmTasks('grunt-contrib-jshint');
     grunt.loadNpmTasks('grunt-contrib-clean');
+    grunt.loadNpmTasks('grunt-contrib-concat');
     grunt.loadNpmTasks('grunt-contrib-copy');
     grunt.loadNpmTasks('grunt-contrib-watch');
     grunt.loadNpmTasks('grunt-contrib-cssmin');
@@ -141,6 +158,7 @@ module.exports = function (grunt) {
     grunt.registerTask('build', [
         'jshint',
         'clean',
+        'concat',
         'copy',
         'ngtemplates',
         'autoprefixer',
