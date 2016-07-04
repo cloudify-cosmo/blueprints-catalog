@@ -12,7 +12,7 @@
         blueprints: {
             order: 1,
             name: 'blueprints',
-            githubQuery: '-example+in:name+fork:true+user:cloudify-examples',
+            githubQuery: '-blueprint+in:name+fork:true+user:cloudify-examples',
             canUpload: true
         },
         plugins: {
@@ -196,7 +196,7 @@
                             $scope.error = undefined;
                             CloudifyManager.upload($scope.managerEndpoint, $scope.blueprint)
                                 .then(function () {
-                                    $scope.uploadRepo = undefined;
+                                    $scope.closeUpload();
                                 }, function (response) {
                                     $log.debug(LOG_TAG, 'upload failed', response);
 
